@@ -1,6 +1,7 @@
 
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+from django.contrib.auth.models import User
 from rest_framework.authtoken.serializers import AuthTokenSerializer
 from knox.auth import AuthToken, TokenAuthentication
 from .serializers import RegisterSerializer
@@ -9,10 +10,9 @@ from .models import *
 
 def serialize_user(user):
     return {
+        "id":user.id,
         "username": user.username,
         "email": user.email,
-        "firstname": user.firstname,
-        "lastname": user.lastname
     }
 
 @api_view(['POST'])
@@ -68,20 +68,27 @@ def get_user(request):
     
 @api_view(['POST'])
 def register_api(request):
+    user_data = User.objects.all()
     required_fields = ["username", "email", "password"]
     serializer = RegisterSerializer(data=request.data)
-    serializer.is_valid(raise_exception=True)
-    user = serializer.save()
-    created, token = AuthToken.objects.create(user)
+    try:
+       if serializer.is_valid(raise_exception=True):
+          user = serializer.save()
+          created, token = AuthToken.objects.create(user)
     
-    return Response({
-            'user_info':{
-            'id':user.id,
-            'username':user.username,
-            'email':user.email    
-             },
-            'token':token
-    })
-    # if serializer.is_valid():
-    #     serializer.save()
-    # return Response(serializer.data)
+          return Response({'user_data': serialize_user(user),
+                           'token':token,
+                           'message':"User successfully registered",
+                           'status':'success'})
+    except Exception as e: 
+        user_data = request.POST.get('username')
+        existing_user = User.objects.filter(username='username').first()
+        return Response({"status":"error",
+                         "code": "USERNAME_EXISTS",
+                         "message": "The provided username is already taken. Please choose a different username."
+             })
+    #    return Response({  
+    #         "message": str(e),
+    #         "code": "INTERNAL_SERVER_ERROR",
+    #         "message": "An internal server error occured while registering the use. Please try again later"
+    #     })    
